@@ -24,7 +24,7 @@ def login(body: LoginRequest, response: Response, db: DbSession) -> UserOut:
         max_age=settings.jwt_expire_minutes * 60,
         httponly=True,  # not readable from JavaScript (XSS can't steal it)
         samesite="lax",  # not sent on cross-site POSTs (CSRF mitigation)
-        secure=settings.app_env != "development",
+        secure=settings.cookie_secure,
         path="/",
     )
     return UserOut.model_validate(user)

@@ -13,6 +13,7 @@ TEST_DATABASE_URL = os.environ.get(
 # Must be set before the app (and its engine) is imported.
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 os.environ.setdefault("JWT_SECRET", "test-secret-not-for-production")
+os.environ["COOKIE_SECURE"] = "false"  # TestClient talks plain HTTP
 
 from collections.abc import Iterator  # noqa: E402
 from pathlib import Path  # noqa: E402

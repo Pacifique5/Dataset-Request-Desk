@@ -1,0 +1,63 @@
+# One command brings up the whole system from a clean clone:
+#   docker compose up --build
+# Web UI: http://localhost:3000   API docs: http://localhost:8000/docs
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: desk
+      POSTGRES_PASSWORD: desk
+      POSTGRES_DB: dataset_desk
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U desk -d dataset_desk"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # One-shot job: migrations, seed users, seed episodes. All three are idempotent,
+  # so `docker compose up` can be re-run safely.
+  migrate:
+    build: ./backend
+    environment: &api-env
+      APP_ENV: local
+      DATABASE_URL: postgresql+psycopg://desk:desk@db:5432/dataset_desk
+      JWT_SECRET: ${JWT_SECRET:-local-dev-secret-change-me-in-any-real-deployment}
+      COOKIE_SECURE: "false" # plain HTTP on localhost
+      LOG_LEVEL: INFO
+    volumes:
+      - ./seed:/seed:ro
+    command: >
+      sh -c "alembic upgrade head
+      && python -m app.cli seed-users --file /seed/users.json
+      && python -m app.cli import-episodes --file /seed/episodes.csv"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    build: ./backend
+    environment: *api-env
+    ports:
+      - "8000:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        API_URL: http://api:8000
+    environment:
+      API_URL: http://api:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  pgdata:
