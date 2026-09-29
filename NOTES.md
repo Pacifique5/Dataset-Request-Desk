@@ -201,8 +201,13 @@ entries). Changes, in order:
 
 ## 6. AI tooling
 
-I used an AI coding assistant during development: to talk through the design, to write
-first drafts of code and tests, and to review. I checked every change by running it:
-backend tests against Postgres, lint and type checks, and manual runs of the UI and of
-`docker compose up`. I rejected or rewrote suggestions that didn't fit, and I understand
-and can explain every line in this repository.
+I used an AI coding assistant (Claude) throughout this task. It drafted a large part of
+the implementation (backend services, tests and frontend pages) and gave me examples
+that I adapted.
+
+I set up the development environment myself: local PostgreSQL, the Python and Node
+toolchains, the GitHub repository and CI. I also did the checking. I verified the
+validation and import rules against the seed data, ran the authorization, workflow,
+assignment and import tests, went through the client and operator flows in the browser,
+and confirmed that `docker compose up` works from a clean start. I reviewed every change
+before committing it, and I'm prepared to explain and modify any part of the code.
