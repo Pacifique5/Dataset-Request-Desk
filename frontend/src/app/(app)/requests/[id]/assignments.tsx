@@ -21,13 +21,15 @@ const PAGE_SIZE = 25;
 export function Assignments({
   request,
   onChanged,
+  version,
 }: {
   request: DatasetRequestDetail;
   onChanged: () => void;
+  version: number;
 }) {
   const user = useUser();
   const editable = isStaff(user) && request.status === "in_progress";
-  const assigned = useApi<AssignmentList>(`/requests/${request.id}/assignments`);
+  const assigned = useApi<AssignmentList>(`/requests/${request.id}/assignments?v=${version}`);
   const [error, setError] = useState<string | null>(null);
 
   async function mutate(action: () => Promise<unknown>) {
@@ -83,7 +85,9 @@ export function Assignments({
           </EmptyState>
         )}
       </section>
-      {editable && <EpisodePicker defaultTask={request.task_name} onAssign={assign} />}
+      {editable && (
+        <EpisodePicker defaultTask={request.task_name} onAssign={assign} version={version} />
+      )}
     </>
   );
 }
@@ -91,9 +95,11 @@ export function Assignments({
 function EpisodePicker({
   defaultTask,
   onAssign,
+  version,
 }: {
   defaultTask: string;
   onAssign: (ids: string[]) => Promise<boolean>;
+  version: number;
 }) {
   const [task, setTask] = useState(defaultTask);
   const [quality, setQuality] = useState("");
@@ -105,6 +111,7 @@ function EpisodePicker({
     available: "true",
     limit: String(PAGE_SIZE),
     offset: String(offset),
+    v: String(version),
   });
   if (task.trim()) qs.set("task_name", task.trim());
   if (quality) qs.set("quality", quality);

@@ -3,6 +3,9 @@
 import { ArrowLeft, CalendarDays, Building2, Clock3, Layers } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useState } from "react";
+
+import { LiveIndicator, useLiveEvents } from "@/components/live";
 
 import {
   Avatar,
@@ -22,7 +25,10 @@ import { WorkflowStepper } from "./workflow-stepper";
 
 export default function RequestDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { data: req, error, reload } = useApi<DatasetRequestDetail>(`/requests/${id}`);
+  const [version, setVersion] = useState(0);
+  // Someone else moved this request or changed its episodes: refetch.
+  useLiveEvents(() => setVersion((v) => v + 1), Number(id));
+  const { data: req, error, reload } = useApi<DatasetRequestDetail>(`/requests/${id}?v=${version}`);
 
   if (error)
     return <ErrorBanner message={error.status === 404 ? "Request not found." : error.message} />;
@@ -42,6 +48,9 @@ export default function RequestDetailPage() {
           #{req.id} · <span className="capitalize">{req.task_name}</span>
         </h1>
         <StatusBadge status={req.status} />
+        <span className="ml-auto">
+          <LiveIndicator />
+        </span>
       </div>
 
       <section className="card">
@@ -72,7 +81,7 @@ export default function RequestDetailPage() {
 
       <StatusActions request={req} onChanged={reload} />
 
-      <Assignments request={req} onChanged={reload} />
+      <Assignments request={req} onChanged={reload} version={version} />
 
       <section className="card">
         <h2 className="mb-5 font-semibold text-slate-900">History</h2>

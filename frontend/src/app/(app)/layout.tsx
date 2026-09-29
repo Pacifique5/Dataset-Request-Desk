@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { AppShell } from "@/components/app-shell";
+import { LiveProvider } from "@/components/live";
 import { SessionProvider } from "@/components/session";
 import { getCurrentUser } from "@/lib/server-api";
 
@@ -11,7 +12,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <SessionProvider user={user}>
-      <AppShell>{children}</AppShell>
+      <LiveProvider>
+        <AppShell>{children}</AppShell>
+      </LiveProvider>
     </SessionProvider>
   );
 }

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { LiveIndicator, useLiveEvents } from "@/components/live";
 import { useUser } from "@/components/session";
 import {
   EmptyState,
@@ -28,8 +29,9 @@ import { useApi } from "@/lib/use-api";
 const PAGE_SIZE = 20;
 
 /** Totals per status, from the list endpoint's `total` (cheap: limit=1). */
-function useStatusTotal(status: RequestStatus) {
-  return useApi<Page<DatasetRequest>>(`/requests?status=${status}&limit=1`).data?.total;
+function useStatusTotal(status: RequestStatus, version: number) {
+  return useApi<Page<DatasetRequest>>(`/requests?status=${status}&limit=1&v=${version}`).data
+    ?.total;
 }
 
 export default function RequestsPage() {
@@ -38,16 +40,23 @@ export default function RequestsPage() {
   const staff = isStaff(user);
   const [status, setStatus] = useState<RequestStatus | "">("");
   const [offset, setOffset] = useState(0);
+  // Bumped by live events; part of every URL below, so the data refetches.
+  const [version, setVersion] = useState(0);
+  useLiveEvents(() => setVersion((v) => v + 1));
 
-  const qs = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(offset) });
+  const qs = new URLSearchParams({
+    limit: String(PAGE_SIZE),
+    offset: String(offset),
+    v: String(version),
+  });
   if (status) qs.set("status", status);
   const { data, error, loading } = useApi<Page<DatasetRequest>>(`/requests?${qs}`);
 
   const totals = {
-    submitted: useStatusTotal("submitted"),
-    in_progress: useStatusTotal("in_progress"),
-    delivered: useStatusTotal("delivered"),
-    accepted: useStatusTotal("accepted"),
+    submitted: useStatusTotal("submitted", version),
+    in_progress: useStatusTotal("in_progress", version),
+    delivered: useStatusTotal("delivered", version),
+    accepted: useStatusTotal("accepted", version),
   };
 
   return (
@@ -60,11 +69,14 @@ export default function RequestsPage() {
             : "Track your dataset requests and review deliveries."
         }
         actions={
-          user.role === "client" && (
-            <Link href="/requests/new" className="btn-primary">
-              <Plus className="h-4 w-4" /> New request
-            </Link>
-          )
+          <>
+            <LiveIndicator />
+            {user.role === "client" && (
+              <Link href="/requests/new" className="btn-primary">
+                <Plus className="h-4 w-4" /> New request
+              </Link>
+            )}
+          </>
         }
       />
 
