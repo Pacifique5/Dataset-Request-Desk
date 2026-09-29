@@ -51,6 +51,7 @@ services:
       context: ./frontend
       args:
         API_URL: http://api:8000
+        NEXT_PUBLIC_DEMO_LOGINS: "true" # one-click seed accounts on the login page
     environment:
       API_URL: http://api:8000
     ports:

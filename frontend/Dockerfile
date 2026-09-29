@@ -9,7 +9,9 @@ FROM node:22-alpine AS build
 WORKDIR /app
 # Rewrites (/api/* -> backend) are resolved at build time, so the API URL is a build arg.
 ARG API_URL=http://api:8000
-ENV API_URL=$API_URL NEXT_TELEMETRY_DISABLED=1
+# NEXT_PUBLIC_* values are inlined into the browser bundle at build time.
+ARG NEXT_PUBLIC_DEMO_LOGINS=false
+ENV API_URL=$API_URL NEXT_PUBLIC_DEMO_LOGINS=$NEXT_PUBLIC_DEMO_LOGINS NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build

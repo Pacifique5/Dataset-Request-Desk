@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-import { Nav } from "@/components/nav";
+import { AppShell } from "@/components/app-shell";
 import { SessionProvider } from "@/components/session";
 import { getCurrentUser } from "@/lib/server-api";
 
@@ -11,8 +11,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <SessionProvider user={user}>
-      <Nav />
-      <main className="mx-auto max-w-6xl px-6 py-8">{children}</main>
+      <AppShell>{children}</AppShell>
     </SessionProvider>
   );
 }
