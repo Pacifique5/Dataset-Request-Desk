@@ -13,4 +13,8 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "S"]
-ignore = ["S101", "UP017"]  # assert ok in tests; keep timezone.utc for 3.10
+ignore = ["UP017"]  # keep timezone.utc for Python 3.10 compatibility
+
+[tool.ruff.lint.per-file-ignores]
+# Tests legitimately use assert and throwaway credentials.
+"tests/**" = ["S101", "S105", "S106"]
