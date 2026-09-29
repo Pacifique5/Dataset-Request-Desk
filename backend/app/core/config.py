@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     app_env: str = "development"
-    database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5432/dataset_desk"
+    database_url: str = "postgresql+psycopg://postgres@localhost:5432/dataset_desk"
     jwt_secret: str = Field(default="change-me", min_length=8)
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60
