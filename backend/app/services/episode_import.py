@@ -14,7 +14,7 @@ import re
 from collections import Counter
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import TextIO
 
@@ -39,6 +39,8 @@ MAX_REPORTED_ERRORS = 500
 # Accepted timestamp formats, tried in order. Naive values are treated as UTC.
 # "DD/MM/YYYY HH:MM" is day-first: the export contains 14/08/2026, which only parses
 # day-first, so we assume the recording system uses one convention consistently.
+# Episodes can't be recorded in the future; allow a day of clock skew between systems.
+FUTURE_TOLERANCE = timedelta(days=1)
 _DATE_FORMATS = ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%d/%m/%Y %H:%M")
 _WS = re.compile(r"\s+")
 
@@ -50,6 +52,7 @@ class SkipReason(str, Enum):
     UNKNOWN_ROBOT = "unknown_robot"
     MISSING_TASK_NAME = "missing_task_name"
     INVALID_RECORDED_AT = "invalid_recorded_at"
+    RECORDED_IN_FUTURE = "recorded_in_future"
     INVALID_DURATION = "invalid_duration"
     INVALID_QUALITY = "invalid_quality"
     DUPLICATE_IN_FILE = "duplicate_in_file"
@@ -144,7 +147,9 @@ def parse_duration(value: str) -> int | None:
 
 
 def parse_row(
-    raw: dict[str | None, str | None], known_robots: frozenset[str]
+    raw: dict[str | None, str | None],
+    known_robots: frozenset[str],
+    now: datetime | None = None,
 ) -> EpisodeRow | RowError:
     # csv.DictReader puts surplus fields under key None and fills missing ones with None.
     if None in raw or any(raw.get(c) is None for c in REQUIRED_COLUMNS):
@@ -171,6 +176,12 @@ def parse_row(
         return RowError(
             SkipReason.INVALID_RECORDED_AT,
             f"unparseable recorded_at {raw['recorded_at']!r}",
+            episode_id,
+        )
+    if recorded_at > (now or datetime.now(timezone.utc)) + FUTURE_TOLERANCE:
+        return RowError(
+            SkipReason.RECORDED_IN_FUTURE,
+            f"recorded_at {raw['recorded_at']!r} is in the future",
             episode_id,
         )
 
@@ -245,6 +256,7 @@ def import_episodes(db: Session, stream: TextIO) -> ImportReport:
         raise InvalidCsvError(f"missing required columns: {', '.join(missing)}")
 
     known_robots = frozenset(db.scalars(select(Robot.id)))
+    now = datetime.now(timezone.utc)
     report = ImportReport()
     # episode_id -> hash of its first normalised row (a hash, not the row, keeps memory low).
     first_seen: dict[str, int] = {}
@@ -253,7 +265,7 @@ def import_episodes(db: Session, stream: TextIO) -> ImportReport:
     for raw in _non_empty(reader, report):
         line = reader.line_num
         report.rows_read += 1
-        result = parse_row(raw, known_robots)
+        result = parse_row(raw, known_robots, now)
         if isinstance(result, RowError):
             report.skip(line, result)
             continue

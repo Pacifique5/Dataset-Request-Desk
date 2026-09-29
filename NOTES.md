@@ -60,12 +60,13 @@ what is on screen; the server's `allowed_transitions` field drives which buttons
 | robot not in `robots` (`arm-99`, blank) | rejected |
 | task name casing/spacing | whitespace collapsed, lower-cased (`  Pick Cup ` → `pick cup`) |
 | dates | ISO with/without `T`, with `Z`; `DD/MM/YYYY HH:MM` is day-first (the file contains `14/08/2026`, which only parses day-first); naive times treated as UTC; `not a date` rejected |
+| recorded in the future (EP-00025, `2031-01-01`) | rejected, with one day of tolerance for clock skew between systems |
 | duration | positive whole seconds only: `45.5`, `-5`, `N/A`, blank rejected rather than guessed |
 | quality | case-insensitive `good/usable/bad`; `excellent`, blank rejected |
 | missing operator name | allowed (stored as NULL); it isn't needed for any rule |
 | blank / malformed row | reported with its line number |
 
-Result on the seed file: 190 rows → 174 imported, 16 skipped; a second run imports 0.
+Result on the seed file: 190 rows → 173 imported, 17 skipped; a second run imports 0.
 
 Other ambiguities I resolved:
 - A request's task name is normalised like an episode's, so filters match.

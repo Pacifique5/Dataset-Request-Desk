@@ -73,6 +73,7 @@ def test_accepted_date_formats(value, expected):
         ({"robot_id": ""}, SkipReason.UNKNOWN_ROBOT),
         ({"task_name": " "}, SkipReason.MISSING_TASK_NAME),
         ({"recorded_at": "not a date"}, SkipReason.INVALID_RECORDED_AT),
+        ({"recorded_at": "2031-01-01T00:00:00"}, SkipReason.RECORDED_IN_FUTURE),
         ({"duration_seconds": "45.5"}, SkipReason.INVALID_DURATION),
         ({"duration_seconds": "-5"}, SkipReason.INVALID_DURATION),
         ({"duration_seconds": "0"}, SkipReason.INVALID_DURATION),
@@ -104,7 +105,8 @@ def test_seed_file_import_report(db):
     with SEED_CSV.open(encoding="utf-8-sig", newline="") as fh:
         report = import_episodes(db, fh).as_dict()
     assert report["rows_read"] == report["imported"] + report["skipped"]
-    assert report["imported"] == _count(db) == 174
+    assert report["imported"] == _count(db) == 173
+    assert report["skipped_by_reason"]["recorded_in_future"] == 1  # EP-00025 (2031)
     assert report["skipped_by_reason"]["duplicate_in_file"] == 4
     assert report["skipped_by_reason"]["unknown_robot"] == 2
     assert all(e["reason"] and e["line"] > 1 for e in report["errors"])
@@ -115,8 +117,8 @@ def test_import_is_idempotent(db):
         with SEED_CSV.open(encoding="utf-8-sig", newline="") as fh:
             report = import_episodes(db, fh).as_dict()
     assert report["imported"] == 0
-    assert report["skipped_by_reason"]["already_imported"] == 174
-    assert _count(db) == 174
+    assert report["skipped_by_reason"]["already_imported"] == 173
+    assert _count(db) == 173
 
 
 def test_conflicting_duplicate_keeps_first_occurrence(db):
@@ -151,7 +153,7 @@ def test_operator_can_import_via_api(client, db):
     op = make_user(db, Role.OPERATOR)
     res = _upload(client, op, SEED_CSV.read_bytes())
     assert res.status_code == 200
-    assert res.json()["imported"] == 174
+    assert res.json()["imported"] == 173
 
 
 def test_client_cannot_import(client, db):
