@@ -10,6 +10,9 @@ episodes, clients accept or reject the delivery.
 
 Design decisions, trade-offs and what I would do next are in [NOTES.md](NOTES.md).
 
+**Stretch item: real-time.** Operators see new requests and status changes live, without
+refreshing (Server-Sent Events backed by Postgres `LISTEN/NOTIFY`).
+
 ## Quick start (Docker)
 
 ```bash
@@ -35,7 +38,9 @@ This starts PostgreSQL, runs migrations, seeds the users and imports
 | client | client-a@example.com | client123 |
 | client | client-b@example.com | client123 |
 
-Passwords are stored as Argon2id hashes, never in plain text.
+Passwords are stored as Argon2id hashes, never in plain text. The login page has one-click
+buttons for these demo accounts (`NEXT_PUBLIC_DEMO_LOGINS=true`, enabled in Docker Compose
+and `.env.example`).
 
 ## Running locally without Docker
 
@@ -111,6 +116,7 @@ A large clean file for load testing can be generated with
 | GET | `/episodes` · POST `/episodes/import` | staff |
 | GET | `/analytics?from=YYYY-MM-DD&to=YYYY-MM-DD` | staff |
 | GET, POST, PATCH | `/users` | admin |
+| GET | `/events` (Server-Sent Events) | authenticated; clients only get their own requests |
 | GET | `/health` | anyone |
 
 Errors always have the shape `{"detail": "...", "code": "..."}`. Every request is

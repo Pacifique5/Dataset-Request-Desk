@@ -81,8 +81,15 @@ Other ambiguities I resolved:
 
 ## 2. Left out / simplified, and the next two days
 
-- **No stretch item.** I prioritised correctness and tests. Next I would add SSE for live
-  request updates: a Postgres `LISTEN/NOTIFY` on status events fanned out to operators.
+- **Stretch item: real-time.** I chose the real-time option. `GET /events` is a
+  Server-Sent Events stream. The services emit `pg_notify` *inside the same transaction*
+  as the change, so an event exists only if the change commits (tested both ways), and
+  every API replica that LISTENs receives it with no extra infrastructure. Each process
+  holds a single LISTEN connection and fans events out to in-memory queues; clients only
+  receive events for their own requests. The UI refetches the affected list or request
+  and shows a toast for changes made by someone else. I picked SSE over WebSockets because
+  updates flow one way only, it works through the existing cookie auth and proxy, and
+  `EventSource` reconnects by itself.
 - **Login throttling is per process.** Failed logins are limited in memory (see Security). With several replicas it should move to Redis.
 - **No token revocation.** Logout clears the cookie, but a stolen token stays valid until
   it expires (60 min). Deactivation *is* immediate, because every request loads the user.
@@ -111,6 +118,11 @@ Two smaller ones:
   because `created` is a reserved `LogRecord` attribute. The users had already been
   committed, so re-running reported 0 created and 5 skipped. The idempotency held, but it
   was a reminder that logging must never take down the operation.
+- **Live updates worked in curl but not in the browser.** SSE through the Next.js proxy
+  streamed fine with `curl`, but the browser only received events when the connection
+  closed. `curl --compressed -D -` showed the difference: with `Accept-Encoding: gzip`
+  the proxy compressed `text/event-stream`, and gzip buffers. Sending
+  `Cache-Control: no-cache, no-transform` makes proxies leave the stream alone.
 - **Text ids compare as text.** Cleaning load-test data with
   `DELETE ... WHERE episode_id >= 'EP-100000'` also deleted `EP-90001`, because
   `'EP-9' > 'EP-1'` as strings. I noticed when a re-import brought back 3 rows. The ids
