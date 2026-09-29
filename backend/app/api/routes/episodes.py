@@ -1,9 +1,12 @@
 import codecs
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, UploadFile, status
+from fastapi import APIRouter, HTTPException, Query, UploadFile, status
 
 from app.api.deps import DbSession, StaffUser
-from app.schemas.episode import ImportReportOut
+from app.models import Quality
+from app.schemas.episode import EpisodeOut, EpisodePage, ImportReportOut
+from app.services.assignments import EpisodeFilters, list_episodes
 from app.services.episode_import import InvalidCsvError, import_episodes
 
 router = APIRouter(prefix="/episodes", tags=["episodes"])
@@ -29,3 +32,32 @@ def import_csv(file: UploadFile, db: DbSession, _: StaffUser) -> ImportReportOut
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "File is not UTF-8 text") from exc
     db.commit()
     return ImportReportOut.model_validate(report.as_dict())
+
+
+@router.get("", response_model=EpisodePage)
+def list_(
+    db: DbSession,
+    _: StaffUser,
+    task_name: str | None = None,
+    quality: Quality | None = None,
+    robot_id: str | None = None,
+    available: bool = False,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> EpisodePage:
+    """Browse episodes. `available=true` = assignable (good/usable) and not yet assigned."""
+    rows, total = list_episodes(
+        db,
+        EpisodeFilters(task_name, quality, robot_id, available_only=available),
+        limit=limit,
+        offset=offset,
+    )
+    return EpisodePage(
+        items=[
+            EpisodeOut.model_validate(ep).model_copy(update={"assigned_request_id": rid})
+            for ep, rid in rows
+        ],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
