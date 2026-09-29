@@ -6,6 +6,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 from app.models.enums import RequestStatus
 from app.models.mixins import CreatedAtMixin, str_enum
+from app.models.user import User
 
 
 class DatasetRequest(CreatedAtMixin, Base):
@@ -32,8 +33,10 @@ class DatasetRequest(CreatedAtMixin, Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
+    client: Mapped[User] = relationship(lazy="joined")
     events: Mapped[list["RequestStatusEvent"]] = relationship(
-        back_populates="request", order_by="RequestStatusEvent.changed_at"
+        back_populates="request",
+        order_by="(RequestStatusEvent.changed_at, RequestStatusEvent.id)",
     )
 
 
@@ -57,8 +60,11 @@ class RequestStatusEvent(Base):
         str_enum(RequestStatus, "event_to_status"), nullable=False
     )
     changed_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    # Optional context, e.g. the client's reason for rejecting a delivery.
+    note: Mapped[str | None] = mapped_column(Text)
     changed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
     request: Mapped[DatasetRequest] = relationship(back_populates="events")
+    changed_by: Mapped[User] = relationship(lazy="joined")
