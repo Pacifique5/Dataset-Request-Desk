@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 
+// Self-hosted from npm (no network needed at build time, no third-party font requests).
+import "@fontsource-variable/inter";
 import "./globals.css";
-
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
   title: "Dataset Request Desk",
@@ -12,7 +11,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={inter.variable}>
+    <html lang="en">
       <body className="min-h-screen font-sans antialiased">{children}</body>
     </html>
   );
