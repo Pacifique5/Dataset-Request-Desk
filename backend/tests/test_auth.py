@@ -48,3 +48,28 @@ def test_logout_clears_cookie(client, db):
     client.post("/auth/login", json={"email": "x@test.local", "password": "password"})
     assert client.post("/auth/logout").status_code == 204
     assert client.get("/auth/me").status_code == 401
+
+
+def test_repeated_failures_are_throttled_even_with_the_right_password(client, db):
+    make_user(db, email="victim@test.local")
+    bad = {"email": "victim@test.local", "password": "wrong"}
+    for _ in range(5):
+        assert client.post("/auth/login", json=bad).status_code == 401
+    res = client.post("/auth/login", json={"email": "victim@test.local", "password": "password"})
+    assert res.status_code == 429
+    assert int(res.headers["retry-after"]) > 0
+    # Other accounts are unaffected.
+    make_user(db, email="other@test.local")
+    ok = client.post("/auth/login", json={"email": "other@test.local", "password": "password"})
+    assert ok.status_code == 200
+
+
+def test_successful_login_resets_the_failure_count(client, db):
+    make_user(db, email="typo@test.local")
+    for _ in range(4):
+        client.post("/auth/login", json={"email": "typo@test.local", "password": "wrong"})
+    good = {"email": "typo@test.local", "password": "password"}
+    assert client.post("/auth/login", json=good).status_code == 200
+    for _ in range(4):
+        client.post("/auth/login", json={"email": "typo@test.local", "password": "wrong"})
+    assert client.post("/auth/login", json=good).status_code == 200

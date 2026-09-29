@@ -83,7 +83,7 @@ Other ambiguities I resolved:
 
 - **No stretch item.** I prioritised correctness and tests. Next I would add SSE for live
   request updates: a Postgres `LISTEN/NOTIFY` on status events fanned out to operators.
-- **No login rate limiting or account lockout** (see Security). I'd add this first.
+- **Login throttling is per process.** Failed logins are limited in memory (see Security). With several replicas it should move to Redis.
 - **No token revocation.** Logout clears the cookie, but a stolen token stays valid until
   it expires (60 min). Deactivation *is* immediate, because every request loads the user.
   Next: short-lived access token plus rotating refresh token, or server-side sessions.
@@ -142,9 +142,13 @@ Two smaller ones:
    a single function (`get_request` / `_visible_to`) that every read and write goes
    through, and why there are tests for cross-client reads, transitions and assignment
    views.
-2. **Credential attacks on login.** There's no rate limiting yet, and seed-style weak
-   passwords exist. Next: per-IP and per-account throttling, a minimum password policy
-   (8+ characters is already enforced for new users), and alerts on repeated failures.
+2. **Credential attacks on login.** Seed-style weak passwords exist. Failed logins are
+   now throttled: 5 failures per (IP, email) within 5 minutes returns `429` with
+   `Retry-After`, and a successful login resets the count. The limits are that the state
+   lives in one process, and behind the Next.js proxy the IP is the proxy's, so in
+   practice it's per account. Next: move it to Redis, trust `X-Forwarded-For` from the
+   proxy only, enforce a stronger password policy (new users need 8+ characters), and
+   alert on repeated failures.
 
 Also on the list: CSRF if a non-`Lax` cookie or a GET with side effects is ever
 introduced, and CSV/formula injection if exports are added.

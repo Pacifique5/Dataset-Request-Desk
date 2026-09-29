@@ -39,6 +39,15 @@ def _migrated_database() -> None:
     command.upgrade(cfg, "head")
 
 
+@pytest.fixture(autouse=True)
+def _reset_login_limiter() -> Iterator[None]:
+    from app.core.rate_limit import login_limiter
+
+    login_limiter.clear()
+    yield
+    login_limiter.clear()
+
+
 @pytest.fixture
 def db() -> Iterator[Session]:
     connection = engine.connect()
