@@ -68,3 +68,21 @@ export const STATUS_LABELS: Record<RequestStatus, string> = {
   accepted: "Accepted",
   rejected: "Rejected",
 };
+
+export interface Episode {
+  episode_id: string;
+  robot_id: string;
+  task_name: string;
+  recorded_at: string;
+  duration_seconds: number;
+  operator_name: string | null;
+  quality: Quality;
+  assigned_request_id: number | null;
+}
+
+export interface AssignmentList {
+  request_id: number;
+  episodes_requested: number;
+  episodes_assigned: number;
+  items: { episode: Episode; assigned_at: string; assigned_by_id: number }[];
+}

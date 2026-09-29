@@ -6,6 +6,7 @@ import { ErrorBanner, Progress, StatusBadge, formatDateTime } from "@/components
 import type { DatasetRequestDetail } from "@/lib/types";
 import { useApi } from "@/lib/use-api";
 
+import { Assignments } from "./assignments";
 import { StatusActions } from "./status-actions";
 
 export default function RequestDetailPage() {
@@ -40,6 +41,8 @@ export default function RequestDetailPage() {
       </section>
 
       <StatusActions request={req} onChanged={reload} />
+
+      <Assignments request={req} onChanged={reload} />
 
       <section className="card">
         <h2 className="mb-4 font-semibold">History</h2>
