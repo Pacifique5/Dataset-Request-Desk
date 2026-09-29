@@ -30,7 +30,8 @@ copy .env.example .env           # then edit DATABASE_URL / JWT_SECRET
 createdb -U postgres dataset_desk
 createdb -U postgres dataset_desk_test
 alembic upgrade head
-python -m app.cli seed-users     # idempotent; reads ../seed/users.json
+python -m app.cli seed-users       # idempotent; reads ../seed/users.json
+python -m app.cli import-episodes  # idempotent; reads ../seed/episodes.csv, prints a report
 uvicorn app.main:app --reload    # http://localhost:8000/docs
 ```
 
