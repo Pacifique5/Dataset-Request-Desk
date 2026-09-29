@@ -10,3 +10,14 @@ export interface HealthResponse {
   status: "ok" | "degraded";
   database: "ok" | "unavailable";
 }
+
+export interface User {
+  id: number;
+  email: string;
+  name: string;
+  organisation: string | null;
+  role: Role;
+  is_active: boolean;
+}
+
+export const isStaff = (user: Pick<User, "role">) => user.role !== "client";

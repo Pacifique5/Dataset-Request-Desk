@@ -11,6 +11,8 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // Don't generate AI-agent instruction files in the project.
+  agentRules: false,
   // Proxy /api/* to the backend so the browser only ever talks to one origin.
   async rewrites() {
     return [{ source: "/api/:path*", destination: `${API_URL}/:path*` }];
