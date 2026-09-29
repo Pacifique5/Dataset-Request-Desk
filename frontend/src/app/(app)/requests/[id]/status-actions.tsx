@@ -1,10 +1,18 @@
 "use client";
 
+import { Check, Loader2, Play, RotateCcw, Truck, X } from "lucide-react";
 import { useState } from "react";
 
 import { ErrorBanner } from "@/components/ui";
 import { ApiError, apiFetch } from "@/lib/api";
 import type { DatasetRequestDetail, RequestStatus } from "@/lib/types";
+
+const ACTION_ICONS: Partial<Record<RequestStatus, typeof Check>> = {
+  in_progress: Play,
+  delivered: Truck,
+  accepted: Check,
+  rejected: X,
+};
 
 const ACTION_LABELS: Record<RequestStatus, string> = {
   submitted: "Submit",
@@ -54,41 +62,69 @@ export function StatusActions({
     }
   }
 
+  const short = request.episodes_requested - request.episodes_assigned;
+  const hint =
+    request.status === "delivered"
+      ? "Review the assigned episodes below, then accept the delivery or send it back."
+      : request.status === "in_progress"
+        ? short > 0
+          ? `Assign ${short} more episode(s) below, then mark the request delivered.`
+          : "All requested episodes are assigned. Mark the request delivered when ready."
+        : "Move this request to the next step.";
+
   return (
-    <section className="card space-y-3">
+    <section className="card space-y-4 border-brand-100 bg-gradient-to-br from-white to-brand-50/40">
+      <div>
+        <h2 className="font-semibold text-slate-900">Next step</h2>
+        <p className="mt-0.5 text-sm text-slate-500">{hint}</p>
+      </div>
       <div className="flex flex-wrap gap-2">
-        {request.allowed_transitions.map((to) => (
-          <button
-            key={to}
-            disabled={pending !== null}
-            className={to === "rejected" ? "btn-secondary" : "btn-primary"}
-            onClick={() => (to === "rejected" ? setRejecting(true) : move(to))}
-          >
-            {pending === to ? "Saving…" : label(to)}
-          </button>
-        ))}
+        {request.allowed_transitions.map((to) => {
+          const Icon =
+            to === "in_progress" && request.status === "rejected" ? RotateCcw : ACTION_ICONS[to];
+          return (
+            <button
+              key={to}
+              disabled={pending !== null || (to === "delivered" && short > 0)}
+              title={
+                to === "delivered" && short > 0 ? `${short} more episode(s) needed` : undefined
+              }
+              className={to === "rejected" ? "btn-danger" : "btn-primary"}
+              onClick={() => (to === "rejected" ? setRejecting(true) : move(to))}
+            >
+              {pending === to ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                Icon && <Icon className="h-4 w-4" />
+              )}
+              {pending === to ? "Saving…" : label(to)}
+            </button>
+          );
+        })}
       </div>
       {rejecting && (
         <form
-          className="space-y-2"
+          className="space-y-3 rounded-xl border border-rose-100 bg-rose-50/50 p-4"
           onSubmit={(e) => {
             e.preventDefault();
             move("rejected", note);
           }}
         >
-          <label className="block text-sm">
+          <label className="label" htmlFor="reject-note">
             Why are you rejecting this delivery?
-            <textarea
-              required
-              maxLength={2000}
-              rows={2}
-              className="input mt-1"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-            />
           </label>
+          <textarea
+            id="reject-note"
+            required
+            maxLength={2000}
+            rows={3}
+            className="input"
+            placeholder="e.g. several episodes are blurry"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
           <div className="flex gap-2">
-            <button type="submit" className="btn-primary" disabled={pending !== null}>
+            <button type="submit" className="btn-danger" disabled={pending !== null}>
               Confirm rejection
             </button>
             <button type="button" className="btn-secondary" onClick={() => setRejecting(false)}>

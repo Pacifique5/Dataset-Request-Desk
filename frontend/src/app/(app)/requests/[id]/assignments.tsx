@@ -1,9 +1,10 @@
 "use client";
 
+import { Film, Loader2, Search, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import { useUser } from "@/components/session";
-import { ErrorBanner, formatDateTime } from "@/components/ui";
+import { EmptyState, ErrorBanner, formatDateTime } from "@/components/ui";
 import { ApiError, apiFetch } from "@/lib/api";
 import {
   isStaff,
@@ -62,16 +63,24 @@ export function Assignments({
 
   return (
     <>
-      <section className="card space-y-4">
-        <h2 className="font-semibold">
-          Assigned episodes ({items.length}/{request.episodes_requested})
-        </h2>
-        <ErrorBanner message={error ?? assigned.error?.message} />
-        {items.length > 0 && (
+      <section className="card overflow-hidden p-0">
+        <div className="flex items-center justify-between px-6 pt-5 pb-4">
+          <h2 className="font-semibold text-slate-900">
+            Assigned episodes ({items.length}/{request.episodes_requested})
+          </h2>
+        </div>
+        <div className="px-6">
+          <ErrorBanner message={error ?? assigned.error?.message} />
+        </div>
+        {items.length > 0 ? (
           <EpisodeTable
             episodes={items.map((a) => a.episode)}
             action={editable ? { label: "Remove", run: (e) => unassign(e.episode_id) } : undefined}
           />
+        ) : (
+          <EmptyState icon={Film} title="No episodes assigned yet">
+            Pick episodes from the list below.
+          </EmptyState>
         )}
       </section>
       {editable && <EpisodePicker defaultTask={request.task_name} onAssign={assign} />}
@@ -120,24 +129,30 @@ function EpisodePicker({
   }
 
   return (
-    <section className="card space-y-4">
-      <div className="flex flex-wrap items-end gap-3">
-        <h2 className="mr-auto font-semibold">Available episodes</h2>
+    <section className="card overflow-hidden p-0">
+      <div className="flex flex-wrap items-end gap-3 px-6 pt-5 pb-4">
+        <div className="mr-auto">
+          <h2 className="font-semibold text-slate-900">Available episodes</h2>
+          <p className="text-sm text-slate-500">Good or usable, not assigned to any request.</p>
+        </div>
         <label className="text-sm">
-          Task
-          <input
-            className="input mt-1 w-48"
-            value={task}
-            onChange={(e) => {
-              setTask(e.target.value);
-              setOffset(0);
-            }}
-          />
+          <span className="label">Task</span>
+          <span className="relative block">
+            <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              className="input w-52 pl-9"
+              value={task}
+              onChange={(e) => {
+                setTask(e.target.value);
+                setOffset(0);
+              }}
+            />
+          </span>
         </label>
         <label className="text-sm">
-          Quality
+          <span className="label">Quality</span>
           <select
-            className="input mt-1 w-36"
+            className="input w-40"
             value={quality}
             onChange={(e) => {
               setQuality(e.target.value);
@@ -150,26 +165,36 @@ function EpisodePicker({
           </select>
         </label>
         <button className="btn-primary" disabled={selected.size === 0 || pending} onClick={submit}>
+          {pending && <Loader2 className="h-4 w-4 animate-spin" />}
           {pending ? "Assigning…" : `Assign selected (${selected.size})`}
         </button>
       </div>
-      <ErrorBanner message={error?.message} />
+      {error && (
+        <div className="px-6 pb-4">
+          <ErrorBanner message={error.message} />
+        </div>
+      )}
       {data && (
         <>
-          <EpisodeTable episodes={data.items} selected={selected} onToggle={toggle} />
-          <div className="flex items-center justify-end gap-3 text-sm text-slate-500">
-            {data.total === 0
-              ? "No matching episodes."
-              : `${offset + 1}–${Math.min(offset + PAGE_SIZE, data.total)} of ${data.total}`}
+          {data.total === 0 ? (
+            <EmptyState icon={Film} title="No matching episodes">
+              Try another task name or quality filter.
+            </EmptyState>
+          ) : (
+            <EpisodeTable episodes={data.items} selected={selected} onToggle={toggle} />
+          )}
+          <div className="flex items-center justify-end gap-3 border-t border-slate-100 px-6 py-3 text-sm text-slate-500">
+            {data.total > 0 &&
+              `${offset + 1}–${Math.min(offset + PAGE_SIZE, data.total)} of ${data.total}`}
             <button
-              className="btn-secondary"
+              className="btn-secondary px-3 py-1.5"
               disabled={offset === 0}
               onClick={() => setOffset(offset - PAGE_SIZE)}
             >
               Previous
             </button>
             <button
-              className="btn-secondary"
+              className="btn-secondary px-3 py-1.5"
               disabled={offset + PAGE_SIZE >= data.total}
               onClick={() => setOffset(offset + PAGE_SIZE)}
             >
@@ -181,6 +206,12 @@ function EpisodePicker({
     </section>
   );
 }
+
+const QUALITY_STYLES: Record<Episode["quality"], string> = {
+  good: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+  usable: "bg-amber-50 text-amber-700 ring-amber-200",
+  bad: "bg-rose-50 text-rose-700 ring-rose-200",
+};
 
 function EpisodeTable({
   episodes,
@@ -196,46 +227,71 @@ function EpisodeTable({
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-left text-sm">
-        <thead className="border-b border-slate-200 text-slate-500">
+        <thead className="table-head">
           <tr>
-            {onToggle && <th className="w-8 py-2" />}
-            <th className="py-2">Episode</th>
-            <th className="py-2">Robot</th>
-            <th className="py-2">Task</th>
-            <th className="py-2">Recorded</th>
-            <th className="py-2">Duration</th>
-            <th className="py-2">Quality</th>
-            {action && <th className="py-2" />}
+            {onToggle && <th className="w-12 py-3 pr-3 pl-6" />}
+            <th className={`py-3 ${onToggle ? "" : "pl-6"}`}>Episode</th>
+            <th className="py-3">Robot</th>
+            <th className="py-3">Task</th>
+            <th className="py-3">Recorded</th>
+            <th className="py-3">Duration</th>
+            <th className="py-3">Quality</th>
+            {action && <th className="py-3 pr-6" />}
           </tr>
         </thead>
-        <tbody>
-          {episodes.map((e) => (
-            <tr key={e.episode_id} className="border-b border-slate-100 last:border-0">
-              {onToggle && (
-                <td className="py-2">
-                  <input
-                    type="checkbox"
-                    aria-label={`Select ${e.episode_id}`}
-                    checked={selected?.has(e.episode_id) ?? false}
-                    onChange={() => onToggle(e.episode_id)}
-                  />
+        <tbody className="divide-y divide-slate-100">
+          {episodes.map((e) => {
+            const isSelected = selected?.has(e.episode_id) ?? false;
+            return (
+              <tr
+                key={e.episode_id}
+                onClick={onToggle ? () => onToggle(e.episode_id) : undefined}
+                className={`transition ${onToggle ? "cursor-pointer hover:bg-slate-50" : ""} ${
+                  isSelected ? "bg-brand-50/60" : ""
+                }`}
+              >
+                {onToggle && (
+                  <td className="py-2.5 pr-3 pl-6">
+                    <input
+                      type="checkbox"
+                      aria-label={`Select ${e.episode_id}`}
+                      className="h-4 w-4 rounded border-slate-300 accent-brand-600"
+                      checked={isSelected}
+                      onClick={(ev) => ev.stopPropagation()}
+                      onChange={() => onToggle(e.episode_id)}
+                    />
+                  </td>
+                )}
+                <td
+                  className={`py-2.5 font-mono text-xs font-medium text-slate-800 ${onToggle ? "" : "pl-6"}`}
+                >
+                  {e.episode_id}
                 </td>
-              )}
-              <td className="py-2 font-mono text-xs">{e.episode_id}</td>
-              <td className="py-2">{e.robot_id}</td>
-              <td className="py-2">{e.task_name}</td>
-              <td className="py-2">{formatDateTime(e.recorded_at)}</td>
-              <td className="py-2">{e.duration_seconds}s</td>
-              <td className="py-2 capitalize">{e.quality}</td>
-              {action && (
-                <td className="py-2 text-right">
-                  <button className="text-rose-600 hover:underline" onClick={() => action.run(e)}>
-                    {action.label}
-                  </button>
+                <td className="py-2.5 text-slate-600">{e.robot_id}</td>
+                <td className="py-2.5 text-slate-600">{e.task_name}</td>
+                <td className="py-2.5 text-slate-600">{formatDateTime(e.recorded_at)}</td>
+                <td className="py-2.5 text-slate-600 tabular-nums">{e.duration_seconds}s</td>
+                <td className="py-2.5">
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ring-1 ring-inset ${QUALITY_STYLES[e.quality]}`}
+                  >
+                    {e.quality}
+                  </span>
                 </td>
-              )}
-            </tr>
-          ))}
+                {action && (
+                  <td className="py-2.5 pr-6 text-right">
+                    <button
+                      className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-rose-600 hover:bg-rose-50"
+                      onClick={() => action.run(e)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      {action.label}
+                    </button>
+                  </td>
+                )}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

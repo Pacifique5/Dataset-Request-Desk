@@ -1,10 +1,11 @@
 "use client";
 
+import { Film, Gauge, Inbox, Timer } from "lucide-react";
 import { useState } from "react";
 
 import { RoleGate } from "@/components/role-gate";
-import { ErrorBanner, StatusBadge } from "@/components/ui";
-import type { RequestStatus } from "@/lib/types";
+import { EmptyState, ErrorBanner, PageHeader, StatCard, StatusBadge } from "@/components/ui";
+import { STATUS_LABELS, type RequestStatus } from "@/lib/types";
 import { useApi } from "@/lib/use-api";
 
 interface Analytics {
@@ -29,93 +30,172 @@ function formatDuration(seconds: number | null) {
   return h < 48 ? `${h.toFixed(1)} h` : `${(h / 24).toFixed(1)} days`;
 }
 
+const PRESETS = [
+  { label: "7 days", days: 6 },
+  { label: "30 days", days: 29 },
+  { label: "90 days", days: 89 },
+];
+
 export default function AnalyticsPage() {
-  const [from, setFrom] = useState(isoDaysAgo(60));
+  const [from, setFrom] = useState(isoDaysAgo(89));
   const [to, setTo] = useState(isoDaysAgo(0));
   const { data, error } = useApi<Analytics>(`/analytics?from=${from}&to=${to}`);
 
-  // Pivot rows into a day x robot table (the API returns long format).
-  const robots = [...new Set(data?.episodes_per_day_per_robot.map((r) => r.robot_id))].sort();
+  // Pivot rows into a day × robot grid (the API returns long format).
+  const rows = data?.episodes_per_day_per_robot ?? [];
+  const robots = [...new Set(rows.map((r) => r.robot_id))].sort();
   const days = new Map<string, Record<string, number>>();
-  for (const r of data?.episodes_per_day_per_robot ?? []) {
-    days.set(r.day, { ...days.get(r.day), [r.robot_id]: r.episodes });
-  }
+  for (const r of rows) days.set(r.day, { ...days.get(r.day), [r.robot_id]: r.episodes });
+  const maxCell = Math.max(1, ...rows.map((r) => r.episodes));
+  const totalEpisodes = rows.reduce((n, r) => n + r.episodes, 0);
+  const totalRequests = data
+    ? Object.values(data.fulfilment.requests_by_status).reduce((a, b) => a + b, 0)
+    : 0;
+  const maxTask = Math.max(
+    1,
+    ...(data?.top_tasks_by_good_episodes.map((t) => t.good_episodes) ?? []),
+  );
 
   return (
     <RoleGate roles={["operator", "admin"]}>
-      <div className="space-y-6">
-        <div className="flex flex-wrap items-end gap-3">
-          <h1 className="mr-auto text-2xl font-semibold">Analytics</h1>
-          <label className="text-sm">
-            From
+      <PageHeader
+        title="Analytics"
+        subtitle="Recording volume, request fulfilment and the best-covered tasks. Dates are inclusive (UTC)."
+        actions={
+          <>
+            <div className="flex rounded-lg bg-slate-100 p-1">
+              {PRESETS.map((p) => {
+                const active = from === isoDaysAgo(p.days) && to === isoDaysAgo(0);
+                return (
+                  <button
+                    key={p.label}
+                    onClick={() => {
+                      setFrom(isoDaysAgo(p.days));
+                      setTo(isoDaysAgo(0));
+                    }}
+                    className={`rounded-md px-3 py-1 text-xs font-semibold transition ${
+                      active
+                        ? "bg-white text-slate-900 shadow-sm"
+                        : "text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
             <input
               type="date"
-              className="input mt-1"
+              aria-label="From"
+              className="input w-40"
               value={from}
               max={to}
               onChange={(e) => setFrom(e.target.value)}
             />
-          </label>
-          <label className="text-sm">
-            To
+            <span className="text-slate-400">→</span>
             <input
               type="date"
-              className="input mt-1"
+              aria-label="To"
+              className="input w-40"
               value={to}
               min={from}
               onChange={(e) => setTo(e.target.value)}
             />
-          </label>
-        </div>
-        <ErrorBanner message={error?.message} />
+          </>
+        }
+      />
+      <ErrorBanner message={error?.message} />
 
-        {data && (
-          <>
-            <div className="grid gap-6 md:grid-cols-2">
-              <section className="card space-y-3">
-                <h2 className="font-semibold">Request fulfilment</h2>
-                <div className="flex flex-wrap gap-3 text-sm">
-                  {Object.entries(data.fulfilment.requests_by_status).map(([s, n]) => (
-                    <span key={s} className="flex items-center gap-1.5">
-                      <StatusBadge status={s as RequestStatus} /> {n}
-                    </span>
-                  ))}
-                </div>
-                <p className="text-sm text-slate-600">
-                  Median submitted → delivered:{" "}
-                  <b>{formatDuration(data.fulfilment.median_submitted_to_delivered_seconds)}</b>{" "}
-                  <span className="text-slate-400">
-                    (n = {data.fulfilment.delivered_sample_size})
-                  </span>
-                </p>
-              </section>
-              <section className="card">
-                <h2 className="mb-3 font-semibold">Top tasks by good episodes</h2>
-                <ol className="space-y-1 text-sm">
-                  {data.top_tasks_by_good_episodes.map((t) => (
-                    <li key={t.task_name} className="flex justify-between">
-                      <span>{t.task_name}</span>
-                      <b>{t.good_episodes}</b>
+      {data && (
+        <div className="space-y-6">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <StatCard label="Episodes recorded" value={totalEpisodes} icon={Film} />
+            <StatCard label="Requests created" value={totalRequests} icon={Inbox} tone="sky" />
+            <StatCard
+              label="Median time to deliver"
+              value={formatDuration(data.fulfilment.median_submitted_to_delivered_seconds)}
+              icon={Timer}
+              tone="amber"
+              hint={`from ${data.fulfilment.delivered_sample_size} delivered request(s)`}
+            />
+            <StatCard
+              label="Accepted"
+              value={data.fulfilment.requests_by_status.accepted}
+              icon={Gauge}
+              tone="emerald"
+              hint="requests signed off by clients"
+            />
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            <section className="card">
+              <h2 className="font-semibold text-slate-900">Request fulfilment</h2>
+              <p className="text-sm text-slate-500">Requests created in this range, by status.</p>
+              <ul className="mt-5 space-y-3">
+                {(Object.keys(STATUS_LABELS) as RequestStatus[]).map((s) => {
+                  const n = data.fulfilment.requests_by_status[s];
+                  return (
+                    <li key={s} className="flex items-center gap-3 text-sm">
+                      <span className="w-28">
+                        <StatusBadge status={s} />
+                      </span>
+                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
+                        <div
+                          className="h-full rounded-full bg-brand-500"
+                          style={{ width: `${totalRequests ? (n / totalRequests) * 100 : 0}%` }}
+                        />
+                      </div>
+                      <span className="w-8 text-right font-semibold tabular-nums">{n}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+
+            <section className="card">
+              <h2 className="font-semibold text-slate-900">Top tasks by good episodes</h2>
+              <p className="text-sm text-slate-500">Where we have the most high-quality data.</p>
+              {data.top_tasks_by_good_episodes.length === 0 ? (
+                <EmptyState icon={Film} title="No good episodes in this range" />
+              ) : (
+                <ol className="mt-5 space-y-3">
+                  {data.top_tasks_by_good_episodes.map((t, i) => (
+                    <li key={t.task_name} className="text-sm">
+                      <div className="mb-1 flex justify-between">
+                        <span className="font-medium text-slate-700 capitalize">
+                          <span className="mr-2 text-slate-400">{i + 1}.</span>
+                          {t.task_name}
+                        </span>
+                        <b className="tabular-nums">{t.good_episodes}</b>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-brand-500 to-fuchsia-500"
+                          style={{ width: `${(t.good_episodes / maxTask) * 100}%` }}
+                        />
+                      </div>
                     </li>
                   ))}
-                  {data.top_tasks_by_good_episodes.length === 0 && (
-                    <li className="text-slate-500">No data.</li>
-                  )}
                 </ol>
-              </section>
-            </div>
+              )}
+            </section>
+          </div>
 
-            <section className="card overflow-x-auto">
-              <h2 className="mb-3 font-semibold">Episodes recorded per day, per robot</h2>
-              {days.size === 0 ? (
-                <p className="text-sm text-slate-500">No episodes in this range.</p>
-              ) : (
+          <section className="card overflow-hidden p-0">
+            <div className="px-6 pt-5 pb-4">
+              <h2 className="font-semibold text-slate-900">Episodes recorded per day, per robot</h2>
+              <p className="text-sm text-slate-500">Darker cells mean more episodes that day.</p>
+            </div>
+            {days.size === 0 ? (
+              <EmptyState icon={Film} title="No episodes in this range" />
+            ) : (
+              <div className="max-h-[32rem] overflow-auto">
                 <table className="w-full text-left text-sm">
-                  <thead className="border-b border-slate-200 text-slate-500">
+                  <thead className="table-head sticky top-0">
                     <tr>
-                      <th className="py-2">Day</th>
+                      <th className="py-3 pl-6">Day</th>
                       {robots.map((r) => (
-                        <th key={r} className="py-2 text-right">
+                        <th key={r} className="px-2 py-3 text-center">
                           {r}
                         </th>
                       ))}
@@ -123,22 +203,37 @@ export default function AnalyticsPage() {
                   </thead>
                   <tbody>
                     {[...days.entries()].map(([day, counts]) => (
-                      <tr key={day} className="border-b border-slate-100 last:border-0">
-                        <td className="py-1.5">{day}</td>
-                        {robots.map((r) => (
-                          <td key={r} className="py-1.5 text-right tabular-nums">
-                            {counts[r] ?? 0}
-                          </td>
-                        ))}
+                      <tr key={day}>
+                        <td className="py-1 pl-6 whitespace-nowrap text-slate-600 tabular-nums">
+                          {day}
+                        </td>
+                        {robots.map((r) => {
+                          const n = counts[r] ?? 0;
+                          return (
+                            <td key={r} className="px-2 py-1">
+                              <div
+                                className="grid h-7 place-items-center rounded-md text-xs font-semibold tabular-nums"
+                                style={{
+                                  backgroundColor: n
+                                    ? `rgba(79, 70, 229, ${0.12 + 0.78 * (n / maxCell)})`
+                                    : "#f8fafc",
+                                  color: n / maxCell > 0.5 ? "white" : n ? "#312e81" : "#cbd5e1",
+                                }}
+                              >
+                                {n}
+                              </div>
+                            </td>
+                          );
+                        })}
                       </tr>
                     ))}
                   </tbody>
                 </table>
-              )}
-            </section>
-          </>
-        )}
-      </div>
+              </div>
+            )}
+          </section>
+        </div>
+      )}
     </RoleGate>
   );
 }

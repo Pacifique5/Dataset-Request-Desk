@@ -1,9 +1,10 @@
 "use client";
 
+import { CheckCircle2, FileSpreadsheet, FileUp, Loader2, Rows3, SkipForward } from "lucide-react";
 import { useState } from "react";
 
 import { RoleGate } from "@/components/role-gate";
-import { ErrorBanner } from "@/components/ui";
+import { ErrorBanner, PageHeader, StatCard } from "@/components/ui";
 import { ApiError, apiFetch } from "@/lib/api";
 
 interface ImportReport {
@@ -15,14 +16,19 @@ interface ImportReport {
   errors_truncated: boolean;
 }
 
+const humanize = (reason: string) => reason.replaceAll("_", " ");
+
 export default function ImportPage() {
+  const [file, setFile] = useState<File | null>(null);
+  const [dragging, setDragging] = useState(false);
   const [report, setReport] = useState<ImportReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
-  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const body = new FormData(e.currentTarget);
+  async function upload() {
+    if (!file) return;
+    const body = new FormData();
+    body.append("file", file);
     setPending(true);
     setError(null);
     try {
@@ -36,72 +42,109 @@ export default function ImportPage() {
 
   return (
     <RoleGate roles={["operator", "admin"]}>
-      <div className="space-y-6">
-        <h1 className="text-2xl font-semibold">Import episodes</h1>
-        <form onSubmit={onSubmit} className="card flex flex-wrap items-center gap-4">
-          <input name="file" type="file" accept=".csv,text/csv" required className="text-sm" />
-          <button className="btn-primary" disabled={pending}>
+      <PageHeader
+        title="Import episodes"
+        subtitle="Upload a CSV export from the recording system. Re-uploading the same file is safe: existing episodes are skipped, never duplicated."
+      />
+
+      <div className="card space-y-4">
+        <label
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragging(true);
+          }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragging(false);
+            setFile(e.dataTransfer.files[0] ?? null);
+          }}
+          className={`flex cursor-pointer flex-col items-center rounded-xl border-2 border-dashed px-6 py-10 text-center transition ${
+            dragging
+              ? "border-brand-500 bg-brand-50"
+              : "border-slate-200 hover:border-brand-300 hover:bg-slate-50"
+          }`}
+        >
+          <div className="grid h-12 w-12 place-items-center rounded-full bg-brand-50 text-brand-600">
+            {file ? <FileSpreadsheet className="h-6 w-6" /> : <FileUp className="h-6 w-6" />}
+          </div>
+          <p className="mt-3 text-sm font-semibold text-slate-900">
+            {file ? file.name : "Drop a CSV here, or click to browse"}
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            {file
+              ? `${(file.size / 1024).toFixed(1)} KB`
+              : "Columns: episode_id, robot_id, task_name, recorded_at, duration_seconds, operator_name, quality"}
+          </p>
+          <input
+            name="file"
+            type="file"
+            accept=".csv,text/csv"
+            className="sr-only"
+            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+          />
+        </label>
+        <div className="flex justify-end">
+          <button className="btn-primary" disabled={!file || pending} onClick={upload}>
+            {pending && <Loader2 className="h-4 w-4 animate-spin" />}
             {pending ? "Importing…" : "Upload CSV"}
           </button>
-          <p className="w-full text-sm text-slate-500">
-            Safe to re-run: episodes that already exist are skipped, never duplicated.
-          </p>
-        </form>
+        </div>
         <ErrorBanner message={error} />
+      </div>
 
-        {report && (
-          <section className="card space-y-4">
-            <div className="grid grid-cols-3 gap-4 text-center">
-              <Stat label="Rows read" value={report.rows_read} />
-              <Stat label="Imported" value={report.imported} />
-              <Stat label="Skipped" value={report.skipped} />
-            </div>
-            {Object.keys(report.skipped_by_reason).length > 0 && (
-              <div className="flex flex-wrap gap-2 text-sm">
+      {report && (
+        <div className="mt-8 space-y-6">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <StatCard label="Rows read" value={report.rows_read} icon={Rows3} tone="slate" />
+            <StatCard label="Imported" value={report.imported} icon={CheckCircle2} tone="emerald" />
+            <StatCard label="Skipped" value={report.skipped} icon={SkipForward} tone="amber" />
+          </div>
+
+          {report.errors.length > 0 && (
+            <section className="card overflow-hidden p-0">
+              <div className="flex flex-wrap items-center gap-2 px-6 py-4">
+                <h2 className="mr-auto font-semibold text-slate-900">Skipped rows</h2>
                 {Object.entries(report.skipped_by_reason).map(([reason, n]) => (
-                  <span key={reason} className="rounded-full bg-slate-100 px-3 py-1">
-                    {reason.replaceAll("_", " ")}: <b>{n}</b>
+                  <span
+                    key={reason}
+                    className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700"
+                  >
+                    {humanize(reason)} · {n}
                   </span>
                 ))}
               </div>
-            )}
-            {report.errors.length > 0 && (
-              <table className="w-full text-left text-sm">
-                <thead className="border-b border-slate-200 text-slate-500">
-                  <tr>
-                    <th className="py-2">Line</th>
-                    <th className="py-2">Episode</th>
-                    <th className="py-2">Reason</th>
-                    <th className="py-2">Detail</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {report.errors.map((err) => (
-                    <tr key={err.line} className="border-b border-slate-100 last:border-0">
-                      <td className="py-1.5">{err.line}</td>
-                      <td className="py-1.5 font-mono text-xs">{err.episode_id ?? "—"}</td>
-                      <td className="py-1.5">{err.reason.replaceAll("_", " ")}</td>
-                      <td className="py-1.5 text-slate-600">{err.detail}</td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="table-head">
+                    <tr>
+                      <th className="py-3 pl-6">Line</th>
+                      <th className="py-3">Episode</th>
+                      <th className="py-3">Reason</th>
+                      <th className="py-3 pr-6">Detail</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-            {report.errors_truncated && (
-              <p className="text-sm text-slate-500">Only the first rows are listed.</p>
-            )}
-          </section>
-        )}
-      </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {report.errors.map((err) => (
+                      <tr key={`${err.line}-${err.reason}`}>
+                        <td className="py-2.5 pl-6 text-slate-500 tabular-nums">{err.line}</td>
+                        <td className="py-2.5 font-mono text-xs">{err.episode_id ?? "—"}</td>
+                        <td className="py-2.5 capitalize">{humanize(err.reason)}</td>
+                        <td className="py-2.5 pr-6 text-slate-500">{err.detail}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {report.errors_truncated && (
+                <p className="border-t border-slate-100 px-6 py-3 text-sm text-slate-500">
+                  Only the first rows are listed.
+                </p>
+              )}
+            </section>
+          )}
+        </div>
+      )}
     </RoleGate>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: number }) {
-  return (
-    <div>
-      <div className="text-2xl font-semibold">{value}</div>
-      <div className="text-xs uppercase tracking-wide text-slate-400">{label}</div>
-    </div>
   );
 }
