@@ -17,5 +17,6 @@ async def events(request: Request, user: CurrentUser) -> StreamingResponse:
     return StreamingResponse(
         event_stream(broadcaster, user.id, user.role, request.is_disconnected),
         media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        # no-transform stops proxies (incl. the Next.js rewrite) from gzipping, which buffers SSE.
+        headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"},
     )
