@@ -18,6 +18,7 @@ from app.core.errors import (
 )
 from app.models import Assignment, DatasetRequest, RequestStatus, RequestStatusEvent, Role, User
 from app.schemas.request import RequestCreate
+from app.services.events import publish_request_event
 from app.services.workflow import allowed_roles
 
 
@@ -52,6 +53,7 @@ def create_request(db: Session, client: User, data: RequestCreate) -> DatasetReq
         )
     )
     db.flush()
+    publish_request_event(db, req, "created", client.id)
     return req
 
 
@@ -130,4 +132,5 @@ def change_status(
     )
     db.flush()
     db.refresh(req)
+    publish_request_event(db, req, "status_changed", user.id)
     return req

@@ -27,6 +27,7 @@ from app.models import (
     RequestStatus,
     User,
 )
+from app.services.events import publish_request_event
 from app.services.requests import get_request
 
 
@@ -107,6 +108,8 @@ def assign_episodes(db: Session, user: User, request_id: int, episode_ids: list[
         # Another operator assigned one of these between our check and our insert;
         # the UNIQUE constraint is the real guarantee.
         raise ConflictError("One or more episodes were just assigned elsewhere; retry") from exc
+    if new:
+        publish_request_event(db, req, "assignments_changed", user.id)
     return len(new)
 
 
@@ -118,6 +121,7 @@ def unassign_episode(db: Session, user: User, request_id: int, episode_id: str) 
     )
     if result.rowcount == 0:
         raise NotFoundError("Episode is not assigned to this request")
+    publish_request_event(db, req, "assignments_changed", user.id)
 
 
 def list_assignments(
